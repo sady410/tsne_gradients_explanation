@@ -1,3 +1,6 @@
+# This code is modified from the original t-SNE implementation made by Laurens van der Maaten.
+# https://lvdmaaten.github.io/tsne/
+
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
@@ -6,7 +9,7 @@ import plotly.io as pio
 
 pio.orca.config.executable = "C:/Users/scorbugy/AppData/Local/Programs/orca/orca.exe"
 
-class MyTSNE:
+class CustomTSNE:
 
     def __init__(self, data, targets, Y = None, P = None, Q = None, sigma = None):
         
@@ -161,8 +164,7 @@ class MyTSNE:
         self.Q = Q
         self.sigma = sigma       
 
-        # Return solution
-        # return Y, P, Q, sigma
+        return Y, P, Q, sigma
     
 
     def save_tsne_data(self, path):
@@ -177,7 +179,35 @@ class MyTSNE:
         self.Q = np.load(path + "/Q.npy")
         self.sigma = np.load(path + "/sigma.npy")
     
-    def plot_tsne_embedding(self, instance_highlight=None,filepath="", title=""):
+    def plot_tsne_embedding_labels(self, filepath="", title=""):
+        df = pd.DataFrame()
+        # df["y"] = df.iloc[: , -1].to_list()
+        df["comp-1"] = self.Y[:,0]
+        df["comp-2"] = self.Y[:,1]
+        df["countries"] = self.targets
+
+        fig = px.scatter(df, x="comp-1", y="comp-2", text="countries")
+        
+        fig.update_traces(textposition='top center')
+        
+        fig.update_layout(
+            height=1000,
+            width=1000,
+            yaxis_title=None,
+            xaxis_title=None,
+            font=dict(size=10),
+            xaxis=dict(tickfont=dict(size=20), ticks="outside", showgrid=False, zeroline=False, mirror=True),
+            yaxis=dict(tickfont=dict(size=20), ticks="outside", showgrid=False, zeroline=False, mirror=True),
+            template="simple_white"
+        )
+
+        
+        if filepath != "" and title != "":
+          fig.write_image(filepath + "/" + title + ".png", engine="orca")
+        else:
+          fig.show()
+
+    def plot_tsne_embedding_classification(self, instance_highlight=None,filepath="", title=""):
 
         df = pd.DataFrame()
         df["id"] = np.array([i for i in range(self.X.shape[0])])
@@ -207,7 +237,7 @@ class MyTSNE:
             font=dict(size=20))
 
         fig.update_traces(marker={"size": 10, "line":dict(width=2, color="DarkSlateGrey")})
-        # pip install kaleido==0.1.0post1
+        
         if filepath != "" and title != "":
           fig.write_image(filepath + "/" + title + ".png", engine="orca")
         else:

@@ -4,29 +4,59 @@ from sklearn.metrics import pairwise_distances
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
+import pandas as pd
+
+from scipy.stats import hmean
 
 class Explainer:
 
-    def __init__(self, tsne):
+    def __init__(self, tsne, features):
         self.X = tsne.X
-        self.labels = ["feature" + str(i) for i in range(tsne.X.shape[1])]
+        self.targets = tsne.targets
+        self.features = features
         self.Y = tsne.Y
         self.P = tsne.P
         self.Q = tsne.Q
         self.sigma = tsne.sigma
         self.gradients = []
         self.scaled_gradients = []
-
-    def set_labels(self):
-        pass
+        self.angles = []
 
     def compute_all_gradients(self):
+        if self.gradients == []:
+            for i in range(self.X.shape[0]):
+                self.gradients.append(self.compute_gradients(i))
+            
+            self.gradients = np.array(self.gradients)
         
-        for i in range(self.X.shape[0]):
-            self.gradients.append(self.compute_gradients(i))
-        
-        self.gradients = np.array(self.gradients)
         return self.gradients
+    
+    def compute_all_angles(self):
+        if self.gradients == []:
+            print("Gradients not computed. Please call compute_all_gradients() before.")
+        else:
+            if self.angles == []:
+                all_angles = []
+
+                for i in range(self.X.shape[0]):
+                    
+                    angles = []
+                    for j in range(self.X.shape[0]):
+
+                        angle_1 = self._get_angle(self.gradients[i][0], self.gradients[j][0])
+                        angle_2 = self._get_angle(self.gradients[i][1], self.gradients[j][1])
+
+                        angles.append(hmean([angle_1, angle_2]))
+                    all_angles.append(angles)
+                
+                self.angles = np.array(all_angles)
+            return self.angles
+            
+    def _get_angle(self, v1, v2):
+        v1_unit = v1 / np.linalg.norm(v1)
+        v2_unit = v2 / np.linalg.norm(v2)
+
+        return np.absolute(np.dot(v1_unit, v2_unit))
 
     def compute_gradients(self, i):
         """
@@ -40,75 +70,15 @@ class Explainer:
         -------
         derivative: t-sne "saliency"
         """
-        y2_derivative = self.compute_y2_derivative(i, self.Y, self.P, self.Q)
+        y2_derivative = self._compute_y2_derivative(i, self.Y, self.P, self.Q)
         
-        yx_derivative = self.compute_xy_derivative(i, self.X, self.Y, self.sigma)
+        yx_derivative = self._compute_xy_derivative(i, self.X, self.Y, self.sigma)
         
         derivative = (-np.linalg.inv(y2_derivative)) @ (yx_derivative.T)
 
         return derivative
     
-    def _compute_gradients_old(self, i):
-        """
-        Function that compute the saliency for an image X and output y.
-
-        Parameters:
-        -----------
-        i: indice of the input to consider
-        
-        Return:
-        -------
-        derivative: t-sne "saliency"
-        """
-        y2_derivative = self.compute_y2_derivative_old(i, self.Y, self.P, self.Q)
-        
-        yx_derivative = self.compute_xy_derivative_old(i, self.X, self.Y, self.sigma)
-        
-        derivative = (-np.linalg.inv(y2_derivative)) @ (yx_derivative)
-
-        return derivative
-
-
-    def _compute_y2_derivative_old(self, i, y, P, Q):
-        """
-        Function that compute the second derivative of t-sne regarding y_i
-        
-        Parameters:
-        -----------
-        i: indice of the input to consider
-        y: low-dimensional space embedding
-        P: p-values of t-sne
-        Q: q-values of t-sne
-        
-        Return:
-        -------
-        4*res: derivative regarding y_i
-        """
-        res = np.zeros((2,2), np.float64)
-
-        distances = 1 + pairwise_distances(y, squared=True)
-        S_q = np.sum( 1/distances ) - np.trace(1/distances)
-        
-        S_q_d = -4 * np.sum( np.array([(y[i] - y[h]) / ( (1 + (np.linalg.norm(y[i]-y[h])**2))**2 ) for h in range(y.shape[0]) if h != i]),  axis=0)
-        
-        for j in range(y.shape[0]):
-        
-            if i != j:
-                
-                E_ij = 1 + (np.linalg.norm(y[i]-y[j])**2)
-                E_ij_d = 2 * ( y[i] - y[j] )
-
-                f_ij = P[i,j]-Q[i,j]
-                g_ij = y[i] - y[j]
-
-                f_ij_d = (( (E_ij**(-2)) * 2 * (y[i]-y[j]) * S_q ) + ( 1/E_ij * S_q_d )) / S_q**2
-                g_ij_d = np.identity(y.shape[1], np.float64)
-                
-                res += 1/E_ij * ( f_ij_d.reshape(2, 1) @ g_ij.reshape(1, 2) + f_ij*g_ij_d - (f_ij/E_ij)*(E_ij_d.reshape(2, 1) @ g_ij.reshape(1, 2)))    
-
-        return 4*res
-    
-    def compute_y2_derivative(self, i, y, P, Q):
+    def _compute_y2_derivative(self, i, y, P, Q):
         """
         Function that compute the second derivative of t-sne regarding y_i
         
@@ -147,47 +117,7 @@ class Explainer:
         
         return 4 * ( term1 - term2 + term3 ) 
         
-    def _compute_xy_derivative_old(self, i, X, y, sigma):
-        """
-        Function that compute the second derivative of t-sne regarding x_i
-
-        Parameters:
-        -----------
-        i: indice of the input to consider
-        X: instances in high-dimensional space
-        y: embedding in low-dimensional space 
-        sigma: sigma values found by t-sne with the chosen perplexity 
-        
-        Return:
-        -------
-        4*res: derivative regarding x_i
-        """
-        res = np.zeros((2,X.shape[1]), np.float64)
-        sigma = sigma.reshape((X.shape[0],))
-
-        S_pi = np.sum( np.array([ np.exp( -( (np.linalg.norm(X[i]-X[k])**2) / (2*(sigma[i]**2) ))) for k in range(X.shape[0]) if k != i ])) 
-        S_pi_d = - np.sum( np.array([ ((X[i]-X[k])/sigma[i]**2) * (np.exp( -( (np.linalg.norm(X[i]-X[k])**2) / (2*(sigma[i]**2)) ))) for k in range(X.shape[0]) if k != i ]) , axis=0)
-
-
-        for j in range(X.shape[0]): 
-            # print(f"Loop on j in second derivative: {j} / {X.shape[0]}")
-            if i != j:
-                E_ij = 1 + (np.linalg.norm(y[i]-y[j])**2)
-
-                S_pj = np.sum( np.array([ np.exp( -( (np.linalg.norm(X[j]-X[k])**2) / (2*(sigma[j]**2) ))) for k in range(X.shape[0]) if k != j ])) 
-
-                S_pj_d = (X[j] - X[i]) / (sigma[j]**2) * ( np.exp( -( (np.linalg.norm(X[j] - X[i])**2) / (2*(sigma[j]**2)) )))
-               
-                P_ji_d = -np.exp( -( (np.linalg.norm(X[i]-X[j])**2) / (2*(sigma[i]**2)) )) * ( ((X[i]-X[j]) / (sigma[i]**2)*S_pi) + (S_pi_d) ) / ( S_pi**2 )
-                P_ij_d = np.exp( -( (np.linalg.norm(X[j]-X[i])**2) / (2*(sigma[j]**2)) )) * ( ((X[j]-X[i]) / (sigma[j]**2)*S_pj) - (S_pj_d) ) / ( S_pj**2 )
-                
-                P_d = (1 / (2*X.shape[0])) * (P_ji_d + P_ij_d)
-
-                res += (y[i]-y[j]).reshape(2,1) / E_ij @ P_d.reshape(1,X.shape[1])
-
-        return 4*res
-    
-    def compute_xy_derivative(self, i, X, y, sigma):
+    def _compute_xy_derivative(self, i, X, y, sigma):
         """
         Function that compute the second derivative of t-sne regarding x_i
 
@@ -237,18 +167,89 @@ class Explainer:
 
     def load_gradients(self, path_file):
         self. gradients = np.load(path_file)
-        self.scale_gradients = []
+        self.scaled_gradients = []
     
     def scale_gradients(self):
-        self.scale_gradients = []
+        if self.scaled_gradients == []:
+            scaled_gradients = []
+            for g in self.gradients:
+                norm = np.linalg.norm(g, axis=0)
+                new_g = (g / np.sum(norm))*100
+                scaled_gradients.append(new_g)
+
+            self.scaled_gradients = np.array(scaled_gradients)
+
+    def plot_instance_explanation(self, instance_id):
+        fig = make_subplots(rows=1, cols=2, horizontal_spacing=0.32)
+
+        fig.add_trace(go.Bar(x=self.gradients[instance_id][0], y=self.features, orientation="h", name="X-axis gradients", showlegend=False), row=1, col=1)
+        fig.add_trace(go.Bar(x=self.gradients[instance_id][1], y=self.features, orientation="h", name="Y-axis gradients", showlegend=False), row=1, col=2)
+
+        fig.update_yaxes(categoryorder="total ascending", showline=True, linewidth=2, linecolor='black', row=1, col=1, mirror=True)
+        fig.update_yaxes(categoryorder="total ascending", showline=True, linewidth=2, linecolor='black', row=1, col=2, mirror=True)
+
+        fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, row=1, col=1, zerolinecolor="grey", zerolinewidth=1, mirror=True)
+        fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, row=1, col=2, zerolinecolor="grey", zerolinewidth=1, mirror=True)
+
+        fig.update_layout(height=1000, width=900, font=dict(size=15), template="simple_white")
+        fig.show()
+
+    def plot_scope_explanation(self, instance_id):
+        if self.angles == []:
+            self.compute_all_angles()
+        
+        df = pd.DataFrame()
+        df["comp-1"] = self.Y[:,0]
+        df["comp-2"] = self.Y[:,1]
+        df["countries"] = self.targets
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(x=df["comp-1"], y=df["comp-2"],mode="markers", marker=dict(color="black"), marker_size=7, showlegend=False))
+        fig.add_trace(go.Scatter(x=[df["comp-1"][instance_id]], y=[df["comp-2"][instance_id]], marker=dict(color="crimson"), marker_size=12, showlegend=False))    
+        fig.add_trace(go.Contour(x=df["comp-1"],y=df["comp-2"],z=self.angles[instance_id]))
+
+        fig.update_layout(
+            font=dict(size=20),
+            autosize=False,
+            width=800,
+            height=800,
+            xaxis=dict(ticks="outside", showgrid=False, zeroline=False, mirror=True),
+            yaxis=dict(ticks="outside", showgrid=False, zeroline=False, mirror=True), 
+            template="simple_white"
+        )
+
+        fig.show()
+
+    def plot_feature_importance_ranking(self):
+        
+        if self.gradients == []:
+            self.compute_all_gradients()
+
+        norms = np.zeros(self.gradients.shape[2])
+
         for g in self.gradients:
             norm = np.linalg.norm(g, axis=0)
-            new_g = (g / np.sum(norm))*100
-            self.scaled_gradients.append(new_g)
+            norms += (norm / np.sum(norm))
 
-        self.scaled_gradients = np.array(self.scaled_gradients)
+        mean_norms = norms/self.gradients.shape[2]
 
-    def plot_arrow_fields(self, feature_id, scale):
+        fig = go.Figure()
+
+        fig.add_trace(go.Bar(x=mean_norms, y=self.features, orientation="h", showlegend=False))
+
+        fig.update_yaxes(categoryorder="total ascending", showline=True, linewidth=2, linecolor='black', mirror=True)
+        fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, zerolinecolor="grey", zerolinewidth=1, mirror=True)
+
+        fig.update_layout( 
+                    font=dict(size=15),
+                    width=900,
+                    height=1000,
+                    template="simple_white")
+
+        fig.show()
+
+    def plot_arrow_fields(self, feature_id, scale = 1):
 
         if self.scaled_gradients == []:
             self.scale_gradients()
@@ -258,30 +259,38 @@ class Explainer:
         # fig.add_trace(go.Contour(x=df["comp-1"],y=df["comp-2"],z=np.array(activations[:, i])))
 
         fig.update_layout(
-            font=dict(size=20),
+            title= "Vector field for " + self.features[feature_id],
+            font=dict(size=10),
             xaxis=dict(showgrid=False, zeroline=False, mirror=True),
             yaxis=dict(showgrid=False, zeroline=False, mirror=True),
             height=600,
             width=600,
             showlegend=False,
-            template="simple_white")
+            template="simple_white"
+        )
 
         fig.show()
 
-    def plot_instance_explanation(self, instance_id):
-        fig = make_subplots(rows=2, cols=1, vertical_spacing=0.1)
 
-        fig.add_trace(go.Bar(x=self.gradients[instance_id, 0], y=self.labels, orientation="h", name="X-axis gradients", showlegend=False), row=1, col=1)
-        fig.add_trace(go.Bar(x=self.gradients[instance_id, 1], y=self.labels, orientation="h", name="Y-axis gradients", showlegend=False), row=2, col=1)
+    def plot_one_arrow_with_contour(self, feature_id, instance_id, scale = 1):
 
-        fig.update_yaxes(showline=True, linewidth=2, linecolor='black', row=1, col=1)
-        fig.update_yaxes(showline=True, linewidth=2, linecolor='black', row=2, col=1)
+        df = pd.DataFrame()
+        df["comp-1"] = self.Y[:,0]
+        df["comp-2"] = self.Y[:,1]
+        df["countries"] = self.targets
 
-        fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, row=1, col=1, zerolinecolor="grey", zerolinewidth=1)
-        fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, row=2, col=1, zerolinecolor="grey", zerolinewidth=1)
+        fig = ff.create_quiver([self.Y[instance_id, 0]], [self.Y[instance_id, 1]], [self.scaled_gradients[instance_id, 0, feature_id]], [self.scaled_gradients[instance_id, 1, feature_id]], scale=scale, line=dict(width=3, color="#00f514"))
 
-        fig.update_layout(height=1000, width=1100, font=dict(size=20))
+        fig.add_trace(go.Scatter(x=[df["comp-1"][instance_id]], y=[df["comp-2"][instance_id]], marker=dict(color="crimson"), marker_size=12, showlegend=False))
+        fig.add_trace(go.Contour(x=df["comp-1"],y=df["comp-2"],z=np.array(self.X[:, feature_id])))
+
+        fig.update_layout(
+            title= "Vector for feature " + self.features[feature_id] + " of " + self.targets[instance_id],
+            font=dict(size=10),
+            xaxis=dict(showgrid=False, zeroline=False, mirror=True),
+            yaxis=dict(showgrid=False, zeroline=False, mirror=True),
+            height=600,
+            width=600,
+            showlegend=False)
+
         fig.show()
-
-    def plot_scope_explanation(self):
-        pass
