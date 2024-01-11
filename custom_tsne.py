@@ -211,7 +211,7 @@ class CustomTSNE:
 
         df = pd.DataFrame()
         df["id"] = np.array([i for i in range(self.X.shape[0])])
-        df['class'] = np.array([",".join(item) for item in self.targets.astype(str)])
+        df["class"] = self.targets
         df["comp-1"] = self.Y[:,0]
         df["comp-2"] = self.Y[:,1]
 
@@ -220,21 +220,16 @@ class CustomTSNE:
         if instance_highlight is not None:
           fig.add_trace(go.Scatter(x=[df["comp-1"][instance_highlight]], y=[df["comp-2"][instance_highlight]], mode="markers", marker=dict(color="black"), showlegend=False))
 
-        #fig.update_yaxes(showgrid=False, zeroline=False, mirror=True, showticklabels=False, ticks="")
-
-        #fig.update_xaxes(showgrid=False, zeroline=False, mirror=True, showticklabels=False, ticks="")
-
         fig.update_layout(
-            title=title,
-            margin=dict(l=10, r=10, t=40, b=10),
-            template="simple_white",
+            height=1000,
+            width=1000,
             yaxis_title=None,
             xaxis_title=None,
-            showlegend=False,
-            autosize=False,
-            width=600,
-            height=600,
-            font=dict(size=20))
+            font=dict(size=10),
+            xaxis=dict(tickfont=dict(size=20), ticks="outside", showgrid=False, zeroline=False, mirror=True),
+            yaxis=dict(tickfont=dict(size=20), ticks="outside", showgrid=False, zeroline=False, mirror=True),
+            template="simple_white"
+        )
 
         fig.update_traces(marker={"size": 10, "line":dict(width=2, color="DarkSlateGrey")})
         
