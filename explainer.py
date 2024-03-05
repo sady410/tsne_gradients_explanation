@@ -306,3 +306,67 @@ class Explainer:
             showlegend=False)
 
         fig.show()
+
+    def plot_combined_gradients(self, instance_id):
+        if self.gradients is None:
+            print("No gradients to plot. Please call compute_all_gradients() before.")
+        else:
+            combined_magnitude = np.linalg.norm(self.gradients[instance_id], axis=0)
+
+            fig = go.Figure()
+
+            fig.add_trace(go.Bar(x=combined_magnitude, y=self.features, orientation="h", name="Combined Gradients", showlegend=False))
+
+            fig.update_yaxes(categoryorder="total ascending", showline=True, linewidth=2, linecolor='black', mirror=True)
+            fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, zerolinecolor="grey", zerolinewidth=1, mirror=True)
+
+            fig.update_layout(height=1000, width=900, font=dict(size=15), template="simple_white")
+            fig.show()
+
+    def plot_top_gradient_vectors(self, instance_id):
+        if self.gradients is None:
+            print("No gradients to plot. Please call compute_all_gradients() before.")
+        else:
+            combined_magnitude = np.linalg.norm(self.gradients[instance_id], axis=0)
+            top_features_indices = np.argsort(combined_magnitude)[-4:]
+            combined_vectors = np.sum(self.gradients[instance_id][:, top_features_indices], axis=0)
+
+            print(combined_vectors.shape)
+
+            fig = go.Figure()
+
+            fig.add_trace(go.Scatter(
+                x=self.Y[:, 0],
+                y=self.Y[:, 1],
+                mode="markers",
+                marker=dict(color="black", size=7),
+                showlegend=False
+            ))
+
+            fig.add_trace(go.Scatter(
+                x=[self.Y[instance_id, 0]],
+                y=[self.Y[instance_id, 1]],
+                mode="markers",
+                marker=dict(color="crimson", size=12),
+                showlegend=False
+            ))
+
+            for component in range(2):  # Adjusted to iterate over components
+                fig.add_trace(go.Scatter(
+                    x=[self.Y[instance_id, 0], self.Y[instance_id, 0] + combined_vectors[0]*10],  # Adjusted indexing
+                    y=[self.Y[instance_id, 1], self.Y[instance_id, 1] + combined_vectors[1]*10],  # Adjusted indexing
+                    mode="lines",
+                    line=dict(color="blue", width=2),
+                    showlegend=False
+                ))
+
+            fig.update_layout(
+                title="Top Gradient Vectors for Instance " + str(instance_id),
+                xaxis=dict(ticks="outside", showgrid=False, zeroline=False, mirror=True),
+                yaxis=dict(ticks="outside", showgrid=False, zeroline=False, mirror=True),
+                height=600,
+                width=600,
+                template="simple_white"
+            )
+
+            fig.show()
