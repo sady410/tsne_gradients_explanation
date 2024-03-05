@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import plotly.io as pio
 
-pio.orca.config.executable = "C:/Users/scorbugy/AppData/Local/Programs/orca/orca.exe"
+pio.orca.config.executable = "path-to_orca_folder/orca.exe"
 
 class CustomTSNE:
 
@@ -168,6 +168,9 @@ class CustomTSNE:
     
 
     def save_tsne_data(self, path):
+        if self.Y is None or self.P is None or self.Q is None or self.sigma is None:
+            print("No data to save.")
+            return
         np.save(path + "/embedding.npy", self.Y)
         np.save(path + "/P.npy", self.P)
         np.save(path + "/Q.npy", self.Q)
@@ -180,6 +183,9 @@ class CustomTSNE:
         self.sigma = np.load(path + "/sigma.npy")
     
     def plot_tsne_embedding_labels(self, filepath="", title=""):
+        if self.Y is None:
+            print("No data to plot.")
+            return
         df = pd.DataFrame()
         # df["y"] = df.iloc[: , -1].to_list()
         df["comp-1"] = self.Y[:,0]
@@ -208,7 +214,9 @@ class CustomTSNE:
           fig.show()
 
     def plot_tsne_embedding_classification(self, instance_highlight=None,filepath="", title=""):
-
+        if self.Y is None:
+            print("No data to plot.")
+            return
         df = pd.DataFrame()
         df["id"] = np.array([i for i in range(self.X.shape[0])])
         df["class"] = self.targets

@@ -18,12 +18,13 @@ class Explainer:
         self.P = tsne.P
         self.Q = tsne.Q
         self.sigma = tsne.sigma
-        self.gradients = []
-        self.scaled_gradients = []
+        self.gradients = None
+        self.scaled_gradients = None
         self.angles = []
 
     def compute_all_gradients(self):
-        if self.gradients == []:
+        if self.gradients is None:
+            self.gradients = []
             for i in range(self.X.shape[0]):
                 self.gradients.append(self.compute_gradients(i))
             
@@ -32,7 +33,7 @@ class Explainer:
         return self.gradients
     
     def compute_all_angles(self):
-        if self.gradients == []:
+        if self.gradients is None:
             print("Gradients not computed. Please call compute_all_gradients() before.")
         else:
             if self.angles == []:
@@ -163,36 +164,46 @@ class Explainer:
         return 4 * ( v_ij_d.T @ ( y_ij * E_ij.reshape(n, 1) ) )
     
     def save_gradients(self, path_file):
-        np.save(path_file, self.gradients)
+
+        if self.gradients is None:
+            print("No gradients to save. Please call compute_all_gradients() before.")
+        else:
+            np.save(path_file, self.gradients)
 
     def load_gradients(self, path_file):
         self. gradients = np.load(path_file)
         self.scaled_gradients = []
     
     def scale_gradients(self):
-        if self.scaled_gradients == []:
-            scaled_gradients = []
-            for g in self.gradients:
-                norm = np.linalg.norm(g, axis=0)
-                new_g = (g / np.sum(norm))*100
-                scaled_gradients.append(new_g)
+        if self.gradients is None:
+            print("No gradients to scale. Please call compute_all_gradients() before.")
+        else:
+            if self.scaled_gradients is None:
+                scaled_gradients = []
+                for g in self.gradients:
+                    norm = np.linalg.norm(g, axis=0)
+                    new_g = (g / np.sum(norm))*100
+                    scaled_gradients.append(new_g)
 
-            self.scaled_gradients = np.array(scaled_gradients)
+                self.scaled_gradients = np.array(scaled_gradients)
 
     def plot_instance_explanation(self, instance_id):
-        fig = make_subplots(rows=1, cols=2, horizontal_spacing=0.32)
+        if self.gradients is None:
+            print("No gradients to plot. Please call compute_all_gradients() before.")
+        else:
+            fig = make_subplots(rows=1, cols=2, horizontal_spacing=0.32)
 
-        fig.add_trace(go.Bar(x=self.gradients[instance_id][0], y=self.features, orientation="h", name="X-axis gradients", showlegend=False), row=1, col=1)
-        fig.add_trace(go.Bar(x=self.gradients[instance_id][1], y=self.features, orientation="h", name="Y-axis gradients", showlegend=False), row=1, col=2)
+            fig.add_trace(go.Bar(x=self.gradients[instance_id][0], y=self.features, orientation="h", name="X-axis gradients", showlegend=False), row=1, col=1)
+            fig.add_trace(go.Bar(x=self.gradients[instance_id][1], y=self.features, orientation="h", name="Y-axis gradients", showlegend=False), row=1, col=2)
 
-        fig.update_yaxes(categoryorder="total ascending", showline=True, linewidth=2, linecolor='black', row=1, col=1, mirror=True)
-        fig.update_yaxes(categoryorder="total ascending", showline=True, linewidth=2, linecolor='black', row=1, col=2, mirror=True)
+            fig.update_yaxes(categoryorder="total ascending", showline=True, linewidth=2, linecolor='black', row=1, col=1, mirror=True)
+            fig.update_yaxes(categoryorder="total ascending", showline=True, linewidth=2, linecolor='black', row=1, col=2, mirror=True)
 
-        fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, row=1, col=1, zerolinecolor="grey", zerolinewidth=1, mirror=True)
-        fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, row=1, col=2, zerolinecolor="grey", zerolinewidth=1, mirror=True)
+            fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, row=1, col=1, zerolinecolor="grey", zerolinewidth=1, mirror=True)
+            fig.update_xaxes(ticks="outside", showline=True, linewidth=2, linecolor='black', showgrid=False, row=1, col=2, zerolinecolor="grey", zerolinewidth=1, mirror=True)
 
-        fig.update_layout(height=1000, width=900, font=dict(size=15), template="simple_white")
-        fig.show()
+            fig.update_layout(height=1000, width=900, font=dict(size=15), template="simple_white")
+            fig.show()
 
     def plot_scope_explanation(self, instance_id):
         if self.angles == []:
@@ -223,9 +234,9 @@ class Explainer:
 
     def plot_feature_importance_ranking(self):
         
-        if self.gradients == []:
+        if self.gradients is None:
             self.compute_all_gradients()
-
+        
         norms = np.zeros(self.gradients.shape[2])
 
         for g in self.gradients:
@@ -251,7 +262,7 @@ class Explainer:
 
     def plot_arrow_fields(self, feature_id, scale = 1):
 
-        if self.scaled_gradients == []:
+        if self.scaled_gradients is None:
             self.scale_gradients()
 
         fig = ff.create_quiver(self.Y[:, 0], self.Y[:, 1], self.scaled_gradients[:, 0, feature_id], self.scaled_gradients[:, 1, feature_id], scale=scale)
@@ -273,7 +284,9 @@ class Explainer:
 
 
     def plot_one_arrow_with_contour(self, feature_id, instance_id, scale = 1):
-
+        if self.scaled_gradients is None:
+            self.scale_gradients()
+            
         df = pd.DataFrame()
         df["comp-1"] = self.Y[:,0]
         df["comp-2"] = self.Y[:,1]
