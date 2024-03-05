@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import plotly.io as pio
 
-pio.orca.config.executable = "path-to_orca_folder/orca.exe"
+pio.orca.config.executable = "path_to_orca_folder/orca.exe"
 
 class CustomTSNE:
 
