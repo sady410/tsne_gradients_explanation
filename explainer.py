@@ -1,12 +1,11 @@
 import numpy as np
+import pandas as pd
+import plotly.figure_factory as ff
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from scipy.stats import hmean
 from sklearn.metrics import pairwise_distances
 
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-import plotly.figure_factory as ff
-import pandas as pd
-
-from scipy.stats import hmean
 
 class Explainer:
 
@@ -20,7 +19,7 @@ class Explainer:
         self.sigma = tsne.sigma
         self.gradients = None
         self.scaled_gradients = None
-        self.angles = []
+        self.angles = None
 
     def compute_all_gradients(self):
         if self.gradients is None:
@@ -36,7 +35,7 @@ class Explainer:
         if self.gradients is None:
             print("Gradients not computed. Please call compute_all_gradients() before.")
         else:
-            if self.angles == []:
+            if self.angles is None:
                 all_angles = []
 
                 for i in range(self.X.shape[0]):
@@ -206,7 +205,7 @@ class Explainer:
             fig.show()
 
     def plot_scope_explanation(self, instance_id):
-        if self.angles == []:
+        if self.angles is None:
             self.compute_all_angles()
         
         df = pd.DataFrame()
