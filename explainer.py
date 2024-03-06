@@ -323,15 +323,15 @@ class Explainer:
             fig.update_layout(height=1000, width=900, font=dict(size=15), template="simple_white")
             fig.show()
 
-    def plot_top_gradient_vectors(self, instance_id):
+    def plot_top_gradient_vectors(self, instance_id, nb_features):
         if self.gradients is None:
             print("No gradients to plot. Please call compute_all_gradients() before.")
+        elif nb_features > 5 or nb_features < 1:
+            print("Please choose a number of features between 1 and 5.")
         else:
             combined_magnitude = np.linalg.norm(self.gradients[instance_id], axis=0)
-            top_features_indices = np.argsort(combined_magnitude)[-4:]
-            combined_vectors = np.sum(self.gradients[instance_id][:, top_features_indices], axis=0)
-
-            print(combined_vectors.shape)
+            top_features_indices = np.argsort(combined_magnitude)[-nb_features:]
+            vectors = self.gradients[instance_id][:, top_features_indices]
 
             fig = go.Figure()
 
@@ -339,7 +339,7 @@ class Explainer:
                 x=self.Y[:, 0],
                 y=self.Y[:, 1],
                 mode="markers",
-                marker=dict(color="black", size=7),
+                marker=dict(size=7),
                 showlegend=False
             ))
 
@@ -347,17 +347,23 @@ class Explainer:
                 x=[self.Y[instance_id, 0]],
                 y=[self.Y[instance_id, 1]],
                 mode="markers",
-                marker=dict(color="crimson", size=12),
-                showlegend=False
+                marker=dict(color="crimson", size=7),
+                name="Instance " + str(instance_id),
             ))
 
-            for component in range(2):  # Adjusted to iterate over components
+            # Unpack vectors for plotting
+            x_endpoints = [self.Y[instance_id, 0] + vector[0]*20 for vector in vectors.T]
+            y_endpoints = [self.Y[instance_id, 1] + vector[1]*20 for vector in vectors.T]
+
+            colors = ['yellow', 'green', 'blue', 'orange', 'purple']  # Choose different colors for each line
+
+            for i, (x_end, y_end, feature_id) in enumerate(zip(x_endpoints, y_endpoints, top_features_indices)):
                 fig.add_trace(go.Scatter(
-                    x=[self.Y[instance_id, 0], self.Y[instance_id, 0] + combined_vectors[0]*10],  # Adjusted indexing
-                    y=[self.Y[instance_id, 1], self.Y[instance_id, 1] + combined_vectors[1]*10],  # Adjusted indexing
+                    x=[self.Y[instance_id, 0], x_end],
+                    y=[self.Y[instance_id, 1], y_end],
                     mode="lines",
-                    line=dict(color="blue", width=2),
-                    showlegend=False
+                    line=dict(color=colors[i], width=2),
+                    name=self.features[feature_id],
                 ))
 
             fig.update_layout(
@@ -366,7 +372,15 @@ class Explainer:
                 yaxis=dict(ticks="outside", showgrid=False, zeroline=False, mirror=True),
                 height=600,
                 width=600,
-                template="simple_white"
+                template="simple_white",
+                legend=dict(
+                    x=1,
+                    y=1,
+                    xanchor='right',
+                    yanchor='top',
+                    bgcolor='rgba(255, 255, 255, 0)',
+                    bordercolor='rgba(255, 255, 255, 0)'
+                )
             )
 
             fig.show()
