@@ -11,7 +11,6 @@ The code is an early, basic implementation developed to explore the method and i
 | **This repository** | Original Python research prototype, with scripts and notebooks for exploring gradient-based explanations. |
 | **[C++ implementation](https://github.com/sady410/tsne-explanations-cpp)** | Standalone C++17 implementation of exact t-SNE and the explanation method, with command-line numerical workflows. |
 | **[Insight-SNE website](https://insight-sne.netlify.app/)** | Current desktop product, screenshots, downloads, and getting-started instructions. |
-| **[Insight-SNE desktop repository](https://github.com/sady410/Insight-SNE-desktop)** | Source repository for the current C++/Qt desktop application. |
 | **[Original Insight-SNE repository](https://github.com/sady410/Insight-SNE)** | Earlier Qt application using the Python explanation implementation. |
 
 ## Explore the method interactively
